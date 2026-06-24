@@ -182,6 +182,13 @@
   input{width:100%;background:#f4f4f4;border:1px solid var(--line);color:var(--ink);border-radius:12px;
     padding:12px 14px;font-family:inherit;font-weight:400;font-size:15px}
   input:focus{outline:none;border-color:var(--amber-deep);background:#fff}
+  .pwwrap{position:relative}
+  .pwwrap input{padding-right:64px}
+  .pwtgl{position:absolute;top:50%;right:8px;transform:translateY(-50%);height:30px;padding:0 12px;
+    border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);
+    font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;line-height:1}
+  .pwtgl:hover{color:var(--ink);border-color:var(--amber-deep)}
+  .pwtgl.on{color:var(--amber-deep);border-color:var(--amber-deep)}
   .swatches{display:flex;gap:8px;margin-top:6px}
   .swatches button{width:30px;height:30px;border-radius:50%;border:2px solid #fff;outline:1px solid var(--line);cursor:pointer}
   .swatches button.sel{outline:2px solid var(--ink)}
@@ -264,7 +271,10 @@
     <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
     <div class="hint">指定シートに付けた Apps Script を「ウェブアプリ」として公開し、その <code>/exec</code> URL を貼り付けます。停止のたびに、その日のそのPJの累計時間が書き込まれます。</div>
     <label>合言葉（チーム共通）</label>
-    <input type="password" id="accessToken" placeholder="管理者から共有された合言葉" autocomplete="off">
+    <div class="pwwrap">
+      <input type="password" id="accessToken" placeholder="管理者から共有された合言葉" autocomplete="off">
+      <button type="button" id="pwToggle" class="pwtgl" aria-label="合言葉を表示" aria-pressed="false">表示</button>
+    </div>
     <div class="hint">Apps Script 側（<code>ACCESS_TOKEN</code>）と同じ文字列を入力します。これが一致した人だけが書き込み・集計できます。端末内に保存され、送信時のみ使われます。</div>
     <label>全員集計</label>
     <button class="btn-ghost" id="summaryBtn" style="width:100%">集計を今すぐ更新</button>
@@ -842,8 +852,16 @@ document.getElementById('projSave').onclick=()=>{
 
 /* ---------- settings modal ---------- */
 const setOv=document.getElementById('setOv');
-function openSettings(){document.getElementById('scriptUrl').value=state.scriptUrl||'';document.getElementById('memberName').value=state.member||'';document.getElementById('accessToken').value=state.token||'';setOv.classList.add('on');}
+function openSettings(){document.getElementById('scriptUrl').value=state.scriptUrl||'';document.getElementById('memberName').value=state.member||'';document.getElementById('accessToken').value=state.token||'';resetPwToggle();setOv.classList.add('on');}
 document.getElementById('settingsBtn').onclick=openSettings;
+(function(){
+  const inp=document.getElementById('accessToken'), btn=document.getElementById('pwToggle');
+  function resetPw(){ inp.type='password'; btn.textContent='表示'; btn.classList.remove('on'); btn.setAttribute('aria-pressed','false'); btn.setAttribute('aria-label','合言葉を表示'); }
+  window.resetPwToggle=resetPw;
+  btn.onclick=()=>{ const show=inp.type==='password'; inp.type=show?'text':'password';
+    btn.textContent=show?'非表示':'表示'; btn.classList.toggle('on',show);
+    btn.setAttribute('aria-pressed',show?'true':'false'); btn.setAttribute('aria-label',show?'合言葉を非表示':'合言葉を表示'); };
+})();
 document.getElementById('syncPill').onclick=openSettings;
 document.getElementById('setCancel').onclick=()=>setOv.classList.remove('on');
 document.getElementById('setSave').onclick=()=>{
