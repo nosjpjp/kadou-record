@@ -314,7 +314,7 @@ function load(){
 function save(){ if(!applyingRemote){ state.updatedAt=Date.now(); schedulePush(); } store.set(KEY,JSON.stringify(state)); }
 function id(){return Math.random().toString(36).slice(2,9);}
 
-/* ---------- 端末間リアルタイム同期（ポーリング10秒＋復帰時／last-write-wins） ---------- */
+/* ---------- 端末間リアルタイム同期（ポーリング5秒＋復帰時／last-write-wins） ---------- */
 let applyingRemote=false, pushTimer=null;
 function syncableState(){
   const {projects,daily,active,punch,breaks,breakActive,moves,moveActive,updatedAt}=state;
@@ -1018,7 +1018,7 @@ ensureSpecial();
 render();
 setInterval(tick,1000);
 setInterval(checkpoint,60000);
-setInterval(pullState,10000);                 // 端末間同期：10秒ごとに最新を取得
+setInterval(pullState,5000);                  // 端末間同期：5秒ごとに最新を取得
 setTimeout(pullState,800);                     // 起動直後にも一度取得
 window.addEventListener('online',()=>{flush();pullState();});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderPip();flush();pullState();}});
