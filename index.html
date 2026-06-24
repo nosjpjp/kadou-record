@@ -268,7 +268,7 @@
     <div class="hint">Apps Script 側（<code>ACCESS_TOKEN</code>）と同じ文字列を入力します。これが一致した人だけが書き込み・集計できます。端末内に保存され、送信時のみ使われます。</div>
     <label>全員集計</label>
     <button class="btn-ghost" id="summaryBtn" style="width:100%">集計を今すぐ更新</button>
-    <div class="hint">全員のタブを読み込み、当月の「集計_YYYY_MM」シートを最新に更新します（月初に自動作成・1時間ごとの自動更新も設定可能）。頭4桁が同じPJは1行に統合、<code>9999_</code>は名称ごとに集計します。代表名称はそのシートのA列に管理者が記入した正式名称を使います。</div>
+    <div class="hint">全員のタブを読み込み、当月の「集計_YYYY_MM」シートを最新に更新します（月初に自動作成・1時間ごとの自動更新も設定可能）。並び順と正式名称は「_order」シート（A列に正式名称を縦1列）で指定。表示は頭4桁コードの昇順、コードなし（休憩・移動・9999系）は末尾です。</div>
     <div class="row">
       <button class="btn-ghost" id="setCancel">閉じる</button>
       <button class="btn-primary" id="setSave">保存</button>
