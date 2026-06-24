@@ -268,7 +268,7 @@
     <div class="hint">Apps Script 側（<code>ACCESS_TOKEN</code>）と同じ文字列を入力します。これが一致した人だけが書き込み・集計できます。端末内に保存され、送信時のみ使われます。</div>
     <label>全員集計</label>
     <button class="btn-ghost" id="summaryBtn" style="width:100%">集計を今すぐ更新</button>
-    <div class="hint">全員のタブを読み込み、「集計」タブを最新に更新します（1時間ごとに自動更新も設定可能）。頭4桁が同じPJは1行に統合、<code>9999_</code>は名称ごとに集計します。代表名称は「集計」タブのA列に管理者が記入した正式名称を使います。</div>
+    <div class="hint">全員のタブを読み込み、当月の「集計_YYYY_MM」シートを最新に更新します（月初に自動作成・1時間ごとの自動更新も設定可能）。頭4桁が同じPJは1行に統合、<code>9999_</code>は名称ごとに集計します。代表名称はそのシートのA列に管理者が記入した正式名称を使います。</div>
     <div class="row">
       <button class="btn-ghost" id="setCancel">閉じる</button>
       <button class="btn-primary" id="setSave">保存</button>
@@ -858,7 +858,7 @@ document.getElementById('summaryBtn').onclick=async function(){
   try{
     await fetch(state.scriptUrl,{method:'POST',mode:'no-cors',
       headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'summary',token:state.token||''})});
-    toast('集計を更新しました（「集計」タブをご確認ください）');
+    toast('集計を更新しました（当月の「集計_YYYY_MM」シートをご確認ください）');
   }catch(e){ toast('集計の更新に失敗しました。接続をご確認ください'); }
   this.disabled=false; this.textContent=old;
 };
