@@ -287,18 +287,69 @@ const PALETTE=['#e8920a','#1f9d6b','#2f7fd1','#9b4bd6','#d2562f','#8a7d1f'];
 
 let state=load();
 function load(){
-  try{const o=JSON.parse(store.get(KEY));if(o&&o.projects)return Object.assign({member:'',scriptUrl:'',token:'',queue:[],daily:{},active:null,punch:{},breaks:{},breakActive:null,moves:{},moveActive:null},o);}catch(e){}
+  try{const o=JSON.parse(store.get(KEY));if(o&&o.projects)return Object.assign({member:'',scriptUrl:'',token:'',updatedAt:0,queue:[],daily:{},active:null,punch:{},breaks:{},breakActive:null,moves:{},moveActive:null},o);}catch(e){}
   return {
     projects:[
       {id:id(),name:'プロジェクトA',color:PALETTE[0]},
       {id:id(),name:'プロジェクトB',color:PALETTE[2]},
       {id:id(),name:'プロジェクトC',color:PALETTE[1]}
     ],
-    daily:{}, active:null, scriptUrl:'', token:'', member:'', queue:[], punch:{}, breaks:{}, breakActive:null, moves:{}, moveActive:null
+    daily:{}, active:null, scriptUrl:'', token:'', member:'', updatedAt:0, queue:[], punch:{}, breaks:{}, breakActive:null, moves:{}, moveActive:null
   };
 }
-function save(){store.set(KEY,JSON.stringify(state));}
+function save(){ if(!applyingRemote){ state.updatedAt=Date.now(); schedulePush(); } store.set(KEY,JSON.stringify(state)); }
 function id(){return Math.random().toString(36).slice(2,9);}
+
+/* ---------- 端末間リアルタイム同期（ポーリング10秒＋復帰時／last-write-wins） ---------- */
+let applyingRemote=false, pushTimer=null;
+function syncableState(){
+  const {projects,daily,active,punch,breaks,breakActive,moves,moveActive,updatedAt}=state;
+  return {projects,daily,active,punch,breaks,breakActive,moves,moveActive,updatedAt:updatedAt||0};
+}
+function schedulePush(){
+  if(applyingRemote) return;
+  if(!state.scriptUrl||!state.member) return;
+  clearTimeout(pushTimer); pushTimer=setTimeout(pushState,1200);
+}
+async function pushState(){
+  if(!state.scriptUrl||!state.member) return;
+  try{
+    await fetch(state.scriptUrl,{method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'pushState',member:state.member,token:state.token||'',
+        updatedAt:state.updatedAt||0,json:JSON.stringify(syncableState())})});
+  }catch(e){}
+}
+function pullState(){
+  if(!state.scriptUrl||!state.member) return;
+  const cb='__kadoPull'+Math.random().toString(36).slice(2,8);
+  const sep=state.scriptUrl.indexOf('?')>=0?'&':'?';
+  const url=state.scriptUrl+sep+'action=pullState&member='+encodeURIComponent(state.member)+
+    '&token='+encodeURIComponent(state.token||'')+'&callback='+cb+'&_='+Date.now();
+  const s=document.createElement('script');
+  window[cb]=function(res){ try{ applyPulled(res); }finally{ delete window[cb]; s.remove(); } };
+  s.onerror=function(){ try{delete window[cb];}catch(e){} s.remove(); };
+  s.src=url; document.body.appendChild(s);
+}
+function applyPulled(res){
+  if(!res||!res.ok||!res.json) return;
+  let remote; try{ remote=JSON.parse(res.json); }catch(e){ return; }
+  const rT=Number(res.updatedAt||remote.updatedAt||0), lT=Number(state.updatedAt||0);
+  if(rT<=lT) return;                     // ローカルが新しい/同じ → 取り込まない
+  applyingRemote=true;
+  state.projects=remote.projects||state.projects;
+  state.daily=remote.daily||{};
+  state.active=remote.active||null;
+  state.punch=remote.punch||{};
+  state.breaks=remote.breaks||{};
+  state.breakActive=remote.breakActive||null;
+  state.moves=remote.moves||{};
+  state.moveActive=remote.moveActive||null;
+  state.updatedAt=rT;
+  store.set(KEY,JSON.stringify(state));   // ローカル保存（updatedAtは据え置き）
+  applyingRemote=false;
+  paintAll();
+}
 
 /* ---------- 固定の特別プロジェクト ---------- */
 const SPECIAL_PROJECTS=[
@@ -727,7 +778,7 @@ document.getElementById('setSave').onclick=()=>{
   state.scriptUrl=document.getElementById('scriptUrl').value.trim();
   state.member=document.getElementById('memberName').value.trim();
   state.token=document.getElementById('accessToken').value;
-  save();setOv.classList.remove('on');toast(state.scriptUrl?'保存しました。同期します…':'保存しました');flush();
+  save();setOv.classList.remove('on');toast(state.scriptUrl?'保存しました。同期します…':'保存しました');flush();pullState();
 };
 document.getElementById('summaryBtn').onclick=async function(){
   if(!state.scriptUrl){ toast('先に Apps Script URL を設定してください'); return; }
@@ -846,8 +897,10 @@ ensureSpecial();
 render();
 setInterval(tick,1000);
 setInterval(checkpoint,60000);
-window.addEventListener('online',flush);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderPip();flush();}});
+setInterval(pullState,10000);                 // 端末間同期：10秒ごとに最新を取得
+setTimeout(pullState,800);                     // 起動直後にも一度取得
+window.addEventListener('online',()=>{flush();pullState();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderPip();flush();pullState();}});
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
 </script>
 </body>
