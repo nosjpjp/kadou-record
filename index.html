@@ -112,6 +112,11 @@
   .editing .lrow{flex-wrap:wrap}
   .editing .lrow .nm{flex:1 1 auto}
   .editing .lrow .ctrls{flex-wrap:wrap;justify-content:flex-end}
+  /* 一括削除用チェックボックス */
+  .pcheck{width:20px;height:20px;flex:0 0 auto;margin-right:4px;accent-color:var(--coral,#ff5e5b);cursor:pointer}
+  .pcheck-spacer{width:20px;flex:0 0 auto;margin-right:4px}
+  .tbtn.danger{color:#fff;background:var(--red);border-color:var(--red)}
+  .tbtn.danger:hover{filter:brightness(.95)}
   .editing .lrow{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
   .lrow.dragging{opacity:.9;cursor:grabbing;box-shadow:0 14px 30px -8px #00000040;z-index:5}
   /* いずれか稼働中は、非稼働行のテキストを薄く */
@@ -226,6 +231,7 @@
     <div class="tbtn" id="sortName" title="名前順" style="display:none">名前順 <span class="ar" data-d="desc">▼</span><span class="ar" data-d="asc">▲</span></div>
     <div class="tbtn" id="sortWork" title="稼働順（過去7日間）" style="display:none">稼働順 <span class="ar" data-d="desc">▼</span><span class="ar" data-d="asc">▲</span></div>
     <div class="tbtn" id="csvBtn" title="CSVでプロジェクト一括登録" style="display:none">CSV取込</div>
+    <div class="tbtn danger" id="bulkDelBtn" title="選択したプロジェクトを一括削除" style="display:none">選択削除</div>
     <div class="tbtn" id="widgetBtn" title="フロート表示">▣ ウィジェット</div>
     <div class="tbtn icon" id="editToggle" title="編集">✎</div>
     <div class="tbtn icon" id="settingsBtn" title="設定">⚙</div>
@@ -240,8 +246,6 @@
     <h2 id="projTitle">プロジェクトを追加</h2>
     <label>名前</label>
     <input type="text" id="pName" maxlength="24" placeholder="例：照明設計A棟">
-    <label>カラー</label>
-    <div class="swatches" id="swatchPick"></div>
     <div class="row">
       <button class="btn-ghost" id="projCancel">キャンセル</button>
       <button class="btn-primary" id="projSave">保存</button>
@@ -354,11 +358,26 @@ function applyPulled(res){
 /* ---------- 固定の特別プロジェクト ---------- */
 const SPECIAL_PROJECTS=[
   '9997_雑務',
-  '9998_PJ外MTG（メーカー研修/DR/Design Update）',
-  '9999_担当業務（契約、各自の担当）'
+  '9998_PJ外MTG（メーカー / 月曜社内mtgなど）',
+  '9999_個人担当業務'
 ];
+// 旧名称 → 新名称（完全一致で置換。稼働データは引き継ぐ）
+const SPECIAL_RENAME={
+  '9998_PJ外MTG（メーカー研修/DR/Design Update）':'9998_PJ外MTG（メーカー / 月曜社内mtgなど）',
+  '9999_担当業務（契約、各自の担当）':'9999_個人担当業務'
+};
 const ZATSUMU='9997_雑務';
+const selected=new Set();   // 一括削除用に選択中のプロジェクトID
+function isSpecial(p){return SPECIAL_PROJECTS.some(nm=>nm.trim()===String(p.name).trim());}
 function pickColor_(){return PALETTE[state.projects.length % PALETTE.length];}
+function renameSpecial(){
+  let changed=false;
+  state.projects.forEach(p=>{
+    const nm=String(p.name).trim();
+    if(SPECIAL_RENAME[nm]){ p.name=SPECIAL_RENAME[nm]; changed=true; }
+  });
+  if(changed) save();
+}
 function ensureSpecial(){
   let changed=false;
   SPECIAL_PROJECTS.forEach(nm=>{
@@ -445,7 +464,47 @@ function setProjSecs(pid,day,secs){
   pushZatsumuSync(day);     // 雑務は自動で帳尻合わせ
   paintAll(); flush();
 }
+// 休憩・移動の長さ(秒)を絶対値で上書き。計測中なら停止して入力値で確定。
+function setSpecialSecs(kind,day,secs){
+  if(kind==='break'){
+    if(state.breakActive&&(state.breakActive.day||dkey())===day) state.breakActive=null;
+    state.breaks[day]=Math.max(0,secs);
+    if(!state.breaks[day]) delete state.breaks[day];
+    save(); pushBreakSync(day);
+  }else{
+    if(state.moveActive&&(state.moveActive.day||dkey())===day) state.moveActive=null;
+    state.moves[day]=Math.max(0,secs);
+    if(!state.moves[day]) delete state.moves[day];
+    save(); pushMoveSync(day);
+  }
+  pushZatsumuSync(day);     // 雑務は自動で帳尻合わせ
+  paintAll(); flush();
+}
 function last7(pid){const pr=state.projects.find(p=>p.id===pid);let t=0;const base=new Date();for(let i=0;i<7;i++){const d=new Date(base);d.setDate(base.getDate()-i);const k=dkey(d);t+=(pr&&isZatsumu(pr))?zatsumuSecs(k):committed(pid,k);}return t+((pr&&isZatsumu(pr))?0:liveExtra(pid));}
+function specialEditRow(kind,label,color){
+  const el=document.createElement('div'); el.className='lrow special-edit';
+  const tk=dkey();
+  const cur=(day)=>((kind==='break'?state.breaks:state.moves)[day])||0;
+  const inputFor=(day)=>`<input class="tin num" data-kind="${kind}" data-day="${day}" inputmode="numeric" placeholder="0:00" value="${hmOnly(cur(day))}">`;
+  let fields;
+  if(isCrossover()){
+    const pk=prevKey();
+    fields=`<div class="tedit2"><label>前日${inputFor(pk)}</label><label>当日${inputFor(tk)}</label></div>`;
+  }else{
+    fields=inputFor(tk);
+  }
+  el.innerHTML=`<span class="pcheck-spacer"></span><div class="nm" style="color:${color}">${label}</div><div class="ctrls">${fields}</div>`;
+  el.querySelectorAll('.tin').forEach(inp=>{
+    inp.addEventListener('pointerdown',ev=>ev.stopPropagation());
+    inp.addEventListener('click',ev=>ev.stopPropagation());
+    inp.addEventListener('change',()=>{
+      const secs=parseHM(inp.value);
+      if(secs===null){ inp.value=hmOnly(cur(inp.dataset.day)); toast('時間は H:MM 形式で入力してください'); return; }
+      setSpecialSecs(inp.dataset.kind, inp.dataset.day, secs);
+    });
+  });
+  return el;
+}
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 /* ---------- core: start / stop ---------- */
@@ -578,6 +637,10 @@ function paintAll(){ render(); renderPip(); }
 function render(){
   document.getElementById('today').innerHTML=jpDate().replace(/\//g,'<span class="sl">/</span>');
   grid.innerHTML='';
+  if(editing){
+    grid.appendChild(specialEditRow('break','休憩','#2f7fd1'));
+    grid.appendChild(specialEditRow('move','移動','#cd6a47'));
+  }
   if(!state.projects.length){grid.innerHTML='<div class="empty">右上の ✎ → ＋ でプロジェクトを追加してください</div>';}
   state.projects.forEach(p=>{
     const running=state.active&&state.active.projectId===p.id;
@@ -601,12 +664,25 @@ function render(){
     }else{
       right=`<div class="tm num" data-pid="${p.id}">${hmOnly(dispSecs(p))}</div>`;
     }
-    el.innerHTML=`<div class="nm">${esc(p.name)}</div>${right}`;
+    const special=isZatsumu(p)||isSpecial(p);
+    const checkbox=(editing&&!special)
+      ? `<input type="checkbox" class="pcheck" data-pid="${p.id}" ${selected.has(p.id)?'checked':''} aria-label="選択">`
+      : (editing?`<span class="pcheck-spacer"></span>`:'');
+    el.innerHTML=`${checkbox}<div class="nm">${esc(p.name)}</div>${right}`;
     el.addEventListener('click',ev=>{
       const act=ev.target.getAttribute&&ev.target.getAttribute('data-act');
+      if(ev.target.classList&&ev.target.classList.contains('pcheck')) return; // チェックは専用ハンドラ
       if(act==='edit'){openProj(p);return;}
-      if(act==='del'){if(confirm(`「${p.name}」を削除しますか？`)){if(state.active&&state.active.projectId===p.id)state.active=null;state.projects=state.projects.filter(x=>x.id!==p.id);save();paintAll();}return;}
+      if(act==='del'){if(confirm(`「${p.name}」を削除しますか？`)){if(state.active&&state.active.projectId===p.id)state.active=null;selected.delete(p.id);state.projects=state.projects.filter(x=>x.id!==p.id);save();paintAll();}return;}
       if(!editing) tileClick(p.id);
+    });
+    el.querySelectorAll('.pcheck').forEach(chk=>{
+      chk.addEventListener('pointerdown',ev=>ev.stopPropagation());
+      chk.addEventListener('click',ev=>ev.stopPropagation());
+      chk.addEventListener('change',()=>{
+        if(chk.checked) selected.add(chk.dataset.pid); else selected.delete(chk.dataset.pid);
+        updateBulkBar();
+      });
     });
     // 稼働時間の直接編集（1分単位）。ドラッグ並べ替えと干渉しないよう伝播を止める
     el.querySelectorAll('.tin').forEach(inp=>{
@@ -754,17 +830,13 @@ function openProj(p){
   editTarget=p;
   document.getElementById('projTitle').textContent=p?'プロジェクトを編集':'プロジェクトを追加';
   document.getElementById('pName').value=p?p.name:'';
-  pickColor=p?p.color:PALETTE[0];
-  const sp=document.getElementById('swatchPick');sp.innerHTML='';
-  PALETTE.forEach(c=>{const b=document.createElement('button');b.style.background=c;if(c===pickColor)b.classList.add('sel');
-    b.onclick=()=>{pickColor=c;[...sp.children].forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};sp.appendChild(b);});
   projOv.classList.add('on');
 }
 document.getElementById('projCancel').onclick=()=>projOv.classList.remove('on');
 document.getElementById('projSave').onclick=()=>{
   const name=document.getElementById('pName').value.trim()||'無題';
-  if(editTarget){editTarget.name=name;editTarget.color=pickColor;}
-  else{state.projects.push({id:id(),name,color:pickColor});}
+  if(editTarget){editTarget.name=name;}                       // 色は変更しない（自動割当のまま）
+  else{state.projects.push({id:id(),name,color:pickColor_()});} // 新規は色を自動割当
   save();projOv.classList.remove('on');paintAll();
 };
 
@@ -808,6 +880,7 @@ document.getElementById('widgetBtn').onclick=openWidget;
 document.getElementById('editToggle').onclick=function(){
   editing=!editing;this.classList.toggle('active',editing);
   document.querySelector('.wrap').classList.toggle('editing',editing);
+  selected.clear();                         // 編集モード切替で選択をリセット
   const disp=editing?'inline-flex':'none';
   document.getElementById('sortName').style.display=disp;
   document.getElementById('sortWork').style.display=disp;
@@ -817,7 +890,24 @@ document.getElementById('editToggle').onclick=function(){
   document.getElementById('clockOut').style.display=editing?'none':'';
   document.getElementById('outEditWrap').style.display=editing?'flex':'none';
   if(editing){const pk=state.punch[dkey()]||{};document.getElementById('inEdit').value=pk.in||'';document.getElementById('outEdit').value=pk.out||'';}
-  render();
+  render(); updateBulkBar();
+};
+function updateBulkBar(){
+  const btn=document.getElementById('bulkDelBtn');
+  const n=selected.size;
+  btn.style.display=(editing&&n>0)?'inline-flex':'none';
+  btn.textContent=`選択削除（${n}）`;
+}
+document.getElementById('bulkDelBtn').onclick=function(){
+  const ids=[...selected].filter(pid=>{const p=state.projects.find(x=>x.id===pid);return p&&!isSpecial(p);});
+  if(!ids.length){ updateBulkBar(); return; }
+  if(!confirm(`${ids.length}件のプロジェクトを削除しますか？`)) return;
+  if(state.active&&ids.includes(state.active.projectId)) state.active=null;
+  const set=new Set(ids);
+  state.projects=state.projects.filter(p=>!set.has(p.id));
+  selected.clear();
+  save(); paintAll(); updateBulkBar();
+  toast(`${ids.length}件を削除しました`);
 };
 document.getElementById('inEdit').onchange=function(){
   const v=this.value, day=dkey();
@@ -864,6 +954,7 @@ function afterEl(y){
 grid.addEventListener('pointerdown',e=>{
   if(!editing)return;
   const row=e.target.closest&&e.target.closest('.lrow'); if(!row)return;
+  if(row.classList.contains('special-edit'))return;   // 休憩・移動の編集行はドラッグ対象外
   if(e.target.closest('button'))return;           // ボタンはクリックを優先
   e.preventDefault();
   dragRow=row; row.classList.add('dragging');
@@ -880,7 +971,7 @@ grid.addEventListener('pointerdown',e=>{
     document.removeEventListener('pointercancel',up);
     if(!dragRow)return;
     dragRow.classList.remove('dragging');
-    const ids=[...grid.querySelectorAll('.lrow')].map(el=>el.dataset.id);
+    const ids=[...grid.querySelectorAll('.lrow:not(.special-edit)')].map(el=>el.dataset.id);
     state.projects.sort((a,b)=>ids.indexOf(a.id)-ids.indexOf(b.id));
     dragRow=null; save(); render();
   };
@@ -893,6 +984,7 @@ grid.addEventListener('pointerdown',e=>{
 let tt;function toast(m){const el=document.getElementById('toast');el.textContent=m;el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),2400);}
 
 /* ---------- loops & lifecycle ---------- */
+renameSpecial();
 ensureSpecial();
 render();
 setInterval(tick,1000);
