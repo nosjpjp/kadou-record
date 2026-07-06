@@ -316,6 +316,19 @@ function id(){return Math.random().toString(36).slice(2,9);}
 
 /* ---------- 端末間リアルタイム同期（ポーリング5秒＋復帰時／last-write-wins） ---------- */
 let applyingRemote=false, pushTimer=null;
+let initialPullDone=false;     // B: 起動直後はまず受信を待ってから送信
+let serverHasData=false;       // C: サーバー側に中身があるか（空上書き確認の判定用）
+let emptyPushConfirmed=false;  // C: 空で上書きする確認を取り終えたか
+// 「実データなし（初期状態）」の判定。特別PJのみ・日次/打刻/休憩/移動なし・計測なし → 空とみなす
+function isEmptyState(s){
+  if(!s) return true;
+  const nonSpecial=(s.projects||[]).some(p=>!isSpecial(p));
+  const hasDaily=s.daily&&Object.keys(s.daily).some(d=>Object.keys(s.daily[d]||{}).length>0);
+  const hasPunch=s.punch&&Object.keys(s.punch).some(d=>{const p=s.punch[d]||{};return p.in||p.out;});
+  const hasBreaks=s.breaks&&Object.keys(s.breaks).some(d=>(s.breaks[d]||0)>0);
+  const hasMoves=s.moves&&Object.keys(s.moves).some(d=>(s.moves[d]||0)>0);
+  return !nonSpecial && !hasDaily && !hasPunch && !hasBreaks && !hasMoves && !s.active;
+}
 function syncableState(){
   const {projects,daily,active,punch,breaks,breakActive,moves,moveActive,updatedAt}=state;
   return {projects,daily,active,punch,breaks,breakActive,moves,moveActive,updatedAt:updatedAt||0};
@@ -323,10 +336,20 @@ function syncableState(){
 function schedulePush(){
   if(applyingRemote) return;
   if(!state.scriptUrl||!state.member) return;
+  if(!isEmptyState(state)) emptyPushConfirmed=false;   // 中身が戻ったら確認フラグをリセット
   clearTimeout(pushTimer); pushTimer=setTimeout(pushState,1200);
 }
 async function pushState(){
   if(!state.scriptUrl||!state.member) return;
+  if(!initialPullDone) return;                 // B: 起動直後はまず受信を待つ（空で上書きしない）
+  if(isEmptyState(state)){                      // A: 空状態はサーバーを上書きしない
+    if(!serverHasData) return;                  //   サーバーも空/不明 → 送らない
+    if(!emptyPushConfirmed){                     // C: サーバーに中身があるのに空で上書き → 確認
+      const ok=confirm('この端末のデータは空です。サーバー上の記録を空で上書きしますか？\n\n通常は「キャンセル」を選んでください。キャッシュ削除直後などは、しばらく待つと他端末の最新データが自動で復元されます。');
+      if(!ok) return;
+      emptyPushConfirmed=true;
+    }
+  }
   try{
     await fetch(state.scriptUrl,{method:'POST',mode:'no-cors',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -341,13 +364,14 @@ function pullState(){
   const url=state.scriptUrl+sep+'action=pullState&member='+encodeURIComponent(state.member)+
     '&token='+encodeURIComponent(state.token||'')+'&callback='+cb+'&_='+Date.now();
   const s=document.createElement('script');
-  window[cb]=function(res){ try{ applyPulled(res); }finally{ delete window[cb]; s.remove(); } };
-  s.onerror=function(){ try{delete window[cb];}catch(e){} s.remove(); };
+  window[cb]=function(res){ try{ applyPulled(res); }finally{ initialPullDone=true; delete window[cb]; s.remove(); } };
+  s.onerror=function(){ initialPullDone=true; try{delete window[cb];}catch(e){} s.remove(); };
   s.src=url; document.body.appendChild(s);
 }
 function applyPulled(res){
   if(!res||!res.ok||!res.json) return;
   let remote; try{ remote=JSON.parse(res.json); }catch(e){ return; }
+  if(!isEmptyState(remote)) serverHasData=true;   // C: サーバー側に中身がある
   const rT=Number(res.updatedAt||remote.updatedAt||0), lT=Number(state.updatedAt||0);
   if(rT<=lT) return;                     // ローカルが新しい/同じ → 取り込まない
   applyingRemote=true;
@@ -1019,7 +1043,8 @@ render();
 setInterval(tick,1000);
 setInterval(checkpoint,60000);
 setInterval(pullState,5000);                  // 端末間同期：5秒ごとに最新を取得
-setTimeout(pullState,800);                     // 起動直後にも一度取得
+pullState();                                   // B: 起動直後にまず受信（送信前に最新を取りに行く）
+setTimeout(()=>{ initialPullDone=true; },6000);// 安全弁：応答が無くても6秒後には送信を解放
 window.addEventListener('online',()=>{flush();pullState();});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderPip();flush();pullState();}});
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
