@@ -114,6 +114,18 @@
   .editing .lrow .ctrls{flex-wrap:wrap;justify-content:flex-end}
   /* 一括削除用チェックボックス */
   .pcheck{width:20px;height:20px;flex:0 0 auto;margin-right:4px;accent-color:var(--coral,#ff5e5b);cursor:pointer}
+  /* 名称モード：タイトルがクリックで編集可能なことを示す */
+  .namemode .lrow .nm.editable{cursor:text;border-radius:6px;padding:2px 6px;margin:-2px -6px;border:1px dashed transparent}
+  .namemode .lrow .nm.editable:hover{border-color:var(--line);background:#fff}
+  .nm-edit{width:100%;font-weight:600;font-size:15px;color:var(--ink);border:1px solid var(--amber-deep);
+    border-radius:8px;padding:4px 8px;background:#fff;font-family:inherit}
+  .nm-edit:focus{outline:none}
+  .nm.editing-nm{display:flex;align-items:center;gap:4px}
+  .nm.editing-nm .nm-edit{flex:1 1 auto;min-width:60px;width:auto}
+  .nm-fixed{flex:0 0 auto;font-weight:700;color:var(--muted);white-space:nowrap;user-select:none}
+  /* 削除モード：選択行のハイライト */
+  .delmode .lrow{cursor:pointer}
+  .delmode .lrow.sel{box-shadow:0 0 0 2px var(--coral,#ff5e5b) inset;background:#fff4f3}
   .pcheck-spacer{width:20px;flex:0 0 auto;margin-right:4px}
   .tbtn.danger{color:#fff;background:var(--red);border-color:var(--red)}
   .tbtn.danger:hover{filter:brightness(.95)}
@@ -238,6 +250,8 @@
     <div class="tbtn" id="sortName" title="名前順" style="display:none">名前順 <span class="ar" data-d="desc">▼</span><span class="ar" data-d="asc">▲</span></div>
     <div class="tbtn" id="sortWork" title="稼働順（過去7日間）" style="display:none">稼働順 <span class="ar" data-d="desc">▼</span><span class="ar" data-d="asc">▲</span></div>
     <div class="tbtn" id="csvBtn" title="CSVでプロジェクト一括登録" style="display:none">CSV取込</div>
+    <div class="tbtn" id="nameModeBtn" title="名称編集モード（タイトルをクリックで編集）" style="display:none">名称</div>
+    <div class="tbtn" id="delModeBtn" title="削除モード（チェック／Shift範囲／Ctrl任意）" style="display:none">削除</div>
     <div class="tbtn danger" id="bulkDelBtn" title="選択したプロジェクトを一括削除" style="display:none">選択削除</div>
     <div class="tbtn" id="widgetBtn" title="フロート表示">▣ ウィジェット</div>
     <div class="tbtn icon" id="editToggle" title="編集">✎</div>
@@ -384,17 +398,19 @@ function applyPulled(res){
   state.moves=remote.moves||{};
   state.moveActive=remote.moveActive||null;
   state.updatedAt=rT;
+  ensureSpecial();                         // 旧端末由来でも特別PJの印(code/special)を保つ
   store.set(KEY,JSON.stringify(state));   // ローカル保存（updatedAtは据え置き）
   applyingRemote=false;
   paintAll();
 }
 
-/* ---------- 固定の特別プロジェクト ---------- */
-const SPECIAL_PROJECTS=[
-  '9997_雑務',
-  '9998_PJ外MTG（メーカー / 月曜社内mtgなど）',
-  '9999_個人担当業務'
+/* ---------- 固定の特別プロジェクト（コード＋フラグで識別。名称変更しても壊れない） ---------- */
+const SPECIAL_DEFS=[
+  {code:'9997', name:'9997_雑務'},
+  {code:'9998', name:'9998_PJ外MTG（メーカー / 月曜社内mtgなど）'},
+  {code:'9999', name:'9999_個人担当業務'}
 ];
+const SPECIAL_PROJECTS=SPECIAL_DEFS.map(d=>d.name);   // 既定名（互換）
 // 旧名称 → 新名称（完全一致で置換。稼働データは引き継ぐ）
 const SPECIAL_RENAME={
   '9998_PJ外MTG（メーカー研修/DR/Design Update）':'9998_PJ外MTG（メーカー / 月曜社内mtgなど）',
@@ -402,7 +418,9 @@ const SPECIAL_RENAME={
 };
 const ZATSUMU='9997_雑務';
 const selected=new Set();   // 一括削除用に選択中のプロジェクトID
-function isSpecial(p){return SPECIAL_PROJECTS.some(nm=>nm.trim()===String(p.name).trim());}
+// 特別PJ＝ensureSpecialで印(special/code)を付けた3行のみ。ユーザーが作る他の9999_案件は対象外。
+function isSpecial(p){ return !!(p&&p.special) || SPECIAL_DEFS.some(d=>d.name===String(p&&p.name).trim()); }
+function specialCode(p){ if(p&&p.code) return p.code; const d=SPECIAL_DEFS.find(d=>d.name===String(p&&p.name).trim()); return d?d.code:''; }
 function pickColor_(){return PALETTE[state.projects.length % PALETTE.length];}
 function renameSpecial(){
   let changed=false;
@@ -414,10 +432,11 @@ function renameSpecial(){
 }
 function ensureSpecial(){
   let changed=false;
-  SPECIAL_PROJECTS.forEach(nm=>{
-    if(!state.projects.some(p=>String(p.name).trim()===nm.trim())){
-      state.projects.push({id:id(),name:nm,color:pickColor_()}); changed=true;
-    }
+  SPECIAL_DEFS.forEach(def=>{
+    // 既存を「コード」または「既定名の完全一致」で探す
+    let p=state.projects.find(x=>x.code===def.code) || state.projects.find(x=>String(x.name).trim()===def.name);
+    if(p){ if(p.code!==def.code||!p.special){ p.code=def.code; p.special=true; changed=true; } }
+    else { state.projects.push({id:id(),name:def.name,color:pickColor_(),code:def.code,special:true}); changed=true; }
   });
   if(changed) save();
 }
@@ -453,7 +472,7 @@ function liveExtra(pid){if(state.active&&state.active.projectId===pid){return (D
 /* ---------- 雑務(9997) 自動算出：出勤総時間 −(各PJ＋休憩＋移動) ---------- */
 function hmToSec(s){const a=String(s).split(':');return (parseInt(a[0],10)||0)*3600+(parseInt(a[1],10)||0)*60;}
 function nowSecOfDay(){const d=new Date();return d.getHours()*3600+d.getMinutes()*60+d.getSeconds();}
-function isZatsumu(p){return String(p.name).trim()===ZATSUMU.trim();}
+function isZatsumu(p){ return specialCode(p)==='9997'; }
 function zatsumuProj(){return state.projects.find(isZatsumu);}
 function zatsumuSecs(day=dkey()){
   const p=state.punch[day]||{};
@@ -474,8 +493,9 @@ function dispSecs(p,day=dkey()){ return isZatsumu(p) ? zatsumuSecs(day) : commit
 function pushZatsumuSync(day){
   const member=state.member||'';
   const hours=Math.round(zatsumuSecs(day)/3600*100)/100;
-  state.queue=state.queue.filter(q=>!(!q.kind&&q.project===ZATSUMU&&q.date===day&&q.member===member));
-  state.queue.push({date:day,project:ZATSUMU,member,hours});
+  const zp=zatsumuProj(); const zname=zp?String(zp.name).trim():ZATSUMU;   // リネーム後は現在名で書き込む
+  state.queue=state.queue.filter(q=>!(!q.kind&&q.project===zname&&q.date===day&&q.member===member));
+  state.queue.push({date:day,project:zname,member,hours});
   save(); setSync();
 }
 /* ---------- 日跨ぎ（深夜連続勤務）判定・稼働時間の直接編集 ---------- */
@@ -667,6 +687,8 @@ async function flush(){
 /* ---------- rendering (main + widget share state) ---------- */
 const grid=document.getElementById('grid');
 let editing=false;
+let editSub=null;          // 編集サブモード: null / 'name' / 'del'（排他トグル）
+let selAnchor=null;        // 範囲選択(Shift)の起点index
 function paintAll(){ render(); renderPip(); }
 function render(){
   document.getElementById('today').innerHTML=jpDate().replace(/\//g,'<span class="sl">/</span>');
@@ -676,10 +698,10 @@ function render(){
     grid.appendChild(specialEditRow('move','移動','#cd6a47'));
   }
   if(!state.projects.length){grid.innerHTML='<div class="empty">右上の ✎ → ＋ でプロジェクトを追加してください</div>';}
-  state.projects.forEach(p=>{
+  state.projects.forEach((p,idx)=>{
     const running=state.active&&state.active.projectId===p.id;
     const el=document.createElement('div');
-    el.className='lrow'+(running?' run':''); el.dataset.id=p.id;
+    el.className='lrow'+(running?' run':''); el.dataset.id=p.id; el.dataset.idx=idx;
     let right;
     if(editing){
       let timeFields;
@@ -694,29 +716,37 @@ function render(){
       }else{
         timeFields=`<input class="tin num" data-pid="${p.id}" data-day="${dkey()}" inputmode="numeric" placeholder="0:00" value="${hmOnly(committed(p.id,dkey()))}">`;
       }
-      right=`<div class="ctrls">${timeFields}<button data-act="edit">名称</button><button class="del" data-act="del">削除</button></div>`;
+      right=`<div class="ctrls">${timeFields}</div>`;   // 個別「名称／削除」ボタンは廃止
     }else{
       right=`<div class="tm num" data-pid="${p.id}">${hmOnly(dispSecs(p))}</div>`;
     }
-    const special=isZatsumu(p)||isSpecial(p);
-    const checkbox=(editing&&!special)
-      ? `<input type="checkbox" class="pcheck" data-pid="${p.id}" ${selected.has(p.id)?'checked':''} aria-label="選択">`
-      : (editing?`<span class="pcheck-spacer"></span>`:'');
-    el.innerHTML=`${checkbox}<div class="nm">${esc(p.name)}</div>${right}`;
+    const special=isSpecial(p);
+    const delMode=(editing&&editSub==='del');
+    const nameMode=(editing&&editSub==='name');
+    const checkbox=delMode
+      ? (special ? `<span class="pcheck-spacer"></span>`
+                 : `<input type="checkbox" class="pcheck" data-pid="${p.id}" ${selected.has(p.id)?'checked':''} aria-label="選択">`)
+      : '';
+    if(delMode&&!special&&selected.has(p.id)) el.classList.add('sel');
+    const nmCls='nm'+(nameMode?' editable':'');
+    el.innerHTML=`${checkbox}<div class="${nmCls}" data-pid="${p.id}">${esc(p.name)}</div>${right}`;
+
+    if(nameMode){
+      const nmEl=el.querySelector('.nm');
+      nmEl.addEventListener('click',ev=>{ ev.stopPropagation(); inlineRename(p,nmEl); });
+    }
+
     el.addEventListener('click',ev=>{
-      const act=ev.target.getAttribute&&ev.target.getAttribute('data-act');
-      if(ev.target.classList&&ev.target.classList.contains('pcheck')) return; // チェックは専用ハンドラ
-      if(act==='edit'){openProj(p);return;}
-      if(act==='del'){if(confirm(`「${p.name}」を削除しますか？`)){if(state.active&&state.active.projectId===p.id)state.active=null;selected.delete(p.id);state.projects=state.projects.filter(x=>x.id!==p.id);save();paintAll();}return;}
+      if(ev.target.classList&&ev.target.classList.contains('pcheck')) return;
+      if(ev.target.closest&&ev.target.closest('.tin')) return;
+      if(nameMode) return;
+      if(delMode){ if(!special) selectClick(idx,p.id,ev); return; }
       if(!editing) tileClick(p.id);
     });
+
     el.querySelectorAll('.pcheck').forEach(chk=>{
       chk.addEventListener('pointerdown',ev=>ev.stopPropagation());
-      chk.addEventListener('click',ev=>ev.stopPropagation());
-      chk.addEventListener('change',()=>{
-        if(chk.checked) selected.add(chk.dataset.pid); else selected.delete(chk.dataset.pid);
-        updateBulkBar();
-      });
+      chk.addEventListener('click',ev=>{ ev.stopPropagation(); selectClick(idx,p.id,ev,true); });
     });
     // 稼働時間の直接編集（1分単位）。ドラッグ並べ替えと干渉しないよう伝播を止める
     el.querySelectorAll('.tin').forEach(inp=>{
@@ -933,11 +963,15 @@ document.getElementById('widgetBtn').onclick=openWidget;
 document.getElementById('editToggle').onclick=function(){
   editing=!editing;this.classList.toggle('active',editing);
   document.querySelector('.wrap').classList.toggle('editing',editing);
-  selected.clear();                         // 編集モード切替で選択をリセット
+  editSub=null; selected.clear(); selAnchor=null;        // 編集切替でサブモード・選択をリセット
   const disp=editing?'inline-flex':'none';
   document.getElementById('sortName').style.display=disp;
   document.getElementById('sortWork').style.display=disp;
   document.getElementById('csvBtn').style.display=disp;
+  document.getElementById('nameModeBtn').style.display=disp;
+  document.getElementById('delModeBtn').style.display=disp;
+  document.getElementById('nameModeBtn').classList.remove('active');
+  document.getElementById('delModeBtn').classList.remove('active');
   document.getElementById('clockIn').style.display=editing?'none':'';
   document.getElementById('inEditWrap').style.display=editing?'flex':'none';
   document.getElementById('clockOut').style.display=editing?'none':'';
@@ -945,10 +979,77 @@ document.getElementById('editToggle').onclick=function(){
   if(editing){const pk=state.punch[dkey()]||{};document.getElementById('inEdit').value=pk.in||'';document.getElementById('outEdit').value=pk.out||'';}
   render(); updateBulkBar();
 };
+function setSubMode(mode){
+  editSub=(editSub===mode)?null:mode;                    // 同じボタンで解除、排他切替
+  selected.clear(); selAnchor=null;
+  document.getElementById('nameModeBtn').classList.toggle('active',editSub==='name');
+  document.getElementById('delModeBtn').classList.toggle('active',editSub==='del');
+  document.querySelector('.wrap').classList.toggle('namemode',editSub==='name');
+  document.querySelector('.wrap').classList.toggle('delmode',editSub==='del');
+  render(); updateBulkBar();
+}
+document.getElementById('nameModeBtn').onclick=()=>setSubMode('name');
+document.getElementById('delModeBtn').onclick=()=>setSubMode('del');
+
+// 削除モードの選択：通常=1件トグル / Shift=範囲 / Ctrl(⌘)=任意トグル
+function selectClick(idx,pid,ev,fromCheckbox){
+  const p=state.projects[idx]; if(!p||isSpecial(p)) return;
+  if(ev.shiftKey&&selAnchor!=null){
+    const a=Math.min(selAnchor,idx), b=Math.max(selAnchor,idx);
+    for(let i=a;i<=b;i++){ const q=state.projects[i]; if(q&&!isSpecial(q)) selected.add(q.id); }
+  }else if(ev.ctrlKey||ev.metaKey){
+    if(selected.has(pid)) selected.delete(pid); else selected.add(pid);
+    selAnchor=idx;
+  }else{
+    if(selected.has(pid)) selected.delete(pid); else selected.add(pid);
+    selAnchor=idx;
+  }
+  render(); updateBulkBar();
+}
+
+// タイトルのインライン編集（名称モード）。Enter/フォーカスアウトで確定、Escで取消
+function inlineRename(p,nmEl){
+  if(nmEl.querySelector('input')) return;
+  const cur=String(p.name);
+  const m=cur.match(/^(\d{4}_)/);           // 先頭「4桁数字＋_」を全PJ共通のコード部分として固定
+  const prefix=m?m[1]:'';
+  const hasPrefix=!!prefix;
+  const label=hasPrefix?cur.slice(prefix.length):cur;
+  nmEl.innerHTML=''; nmEl.classList.add('editing-nm');
+  if(hasPrefix){
+    const pre=document.createElement('span'); pre.className='nm-fixed'; pre.textContent=prefix;
+    pre.title='コード部分は変更できません';
+    nmEl.appendChild(pre);
+  }
+  const inp=document.createElement('input');
+  inp.className='nm-edit'; inp.value=label; inp.maxLength=40; inp.setAttribute('aria-label','プロジェクト名（ラベル）');
+  nmEl.appendChild(inp);
+  inp.focus(); try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){}
+  let done=false;
+  const commit=(keep)=>{
+    if(done) return; done=true;
+    const v=inp.value.trim();
+    if(keep){
+      if(hasPrefix){
+        if(v){ const newName=prefix+v; if(newName!==cur){ p.name=newName; save(); } }   // ラベル空は無視
+      }else{
+        if(v && v!==cur){ p.name=v; save(); }
+      }
+    }
+    paintAll();
+  };
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(true); }
+    else if(e.key==='Escape'){ e.preventDefault(); commit(false); }
+  });
+  inp.addEventListener('blur',()=>commit(true));
+  inp.addEventListener('click',e=>e.stopPropagation());
+  inp.addEventListener('pointerdown',e=>e.stopPropagation());
+}
 function updateBulkBar(){
   const btn=document.getElementById('bulkDelBtn');
   const n=selected.size;
-  btn.style.display=(editing&&n>0)?'inline-flex':'none';
+  btn.style.display=(editing&&editSub==='del'&&n>0)?'inline-flex':'none';
   btn.textContent=`選択削除（${n}）`;
 }
 document.getElementById('bulkDelBtn').onclick=function(){
@@ -958,7 +1059,7 @@ document.getElementById('bulkDelBtn').onclick=function(){
   if(state.active&&ids.includes(state.active.projectId)) state.active=null;
   const set=new Set(ids);
   state.projects=state.projects.filter(p=>!set.has(p.id));
-  selected.clear();
+  selected.clear(); selAnchor=null;
   save(); paintAll(); updateBulkBar();
   toast(`${ids.length}件を削除しました`);
 };
@@ -1006,6 +1107,7 @@ function afterEl(y){
 }
 grid.addEventListener('pointerdown',e=>{
   if(!editing)return;
+  if(editSub)return;                                  // 名称/削除モード中は並べ替えを無効化
   const row=e.target.closest&&e.target.closest('.lrow'); if(!row)return;
   if(row.classList.contains('special-edit'))return;   // 休憩・移動の編集行はドラッグ対象外
   if(e.target.closest('button'))return;           // ボタンはクリックを優先
