@@ -69,7 +69,7 @@
   .total .lbl{font-size:10px;letter-spacing:.03em;color:var(--muted);font-weight:500}
   .total .val{font-size:26px;font-weight:700;color:var(--ink);line-height:1}
 
-  .bar{display:flex;align-items:center;gap:8px;margin:0 0 18px}
+  .bar{display:flex;align-items:center;gap:8px;margin:0 0 18px;overflow-x:auto}
   .pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);font-weight:400;
     background:#f4f4f4;border:1px solid var(--line);padding:7px 12px;border-radius:999px;cursor:pointer;font-family:inherit}
   .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -77,16 +77,16 @@
   .pill.queued .dot{background:var(--amber-deep)}
   .spacer{flex:1}
   .tbtn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;background:#f4f4f4;
-    border:1px solid var(--line);border-radius:12px;color:var(--ink);cursor:pointer;font-size:13px;font-weight:400;font-family:inherit}
+    border:1px solid var(--line);border-radius:12px;color:var(--ink);cursor:pointer;font-size:13px;font-weight:400;font-family:inherit;white-space:nowrap;flex:0 0 auto}
   .tbtn.active{border-color:var(--amber-deep);color:var(--amber-deep)}
   .tbtn.icon{padding:0;width:38px;justify-content:center;font-size:16px}
 
   /* タイマーボタン：リスト形式・ライトグレー地・角丸=高さの50%（カプセル）・黒文字・幅は画面の約1/3を上限 */
   .list{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
   .lrow{position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;
-    width:100%;max-width:100%;
+    width:100%;max-width:100%;min-height:56px;box-sizing:border-box;
     background:var(--tile);border:1px solid var(--tile-line);border-radius:999px;color:var(--ink);
-    padding:15px 22px;cursor:pointer;transition:transform .12s ease,box-shadow .25s ease}
+    padding:14px 22px;cursor:pointer;transition:transform .12s ease,box-shadow .25s ease}
   .lrow:active{transform:scale(.99)}
   .lrow .nm{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
   .lrow .tm{font-size:18px;font-weight:700;color:var(--ink);flex:0 0 auto}
@@ -101,17 +101,18 @@
   .lrow .ctrls button{font-family:inherit;font-weight:400;font-size:12px;border:1px solid var(--line);background:#fff;
     color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
   .lrow .ctrls button.del{color:var(--red);border-color:#e9c3b6}
-  /* 稼働時間の直接編集（HH:MM・1分単位） */
-  .tin{width:62px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  /* 稼働時間の直接編集（HH:MM・1分単位）。行の高さを非編集時と揃えるためコンパクトに */
+  .tin{width:62px;padding:1px 8px;height:26px;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;background:#fff;
     font-family:inherit;font-size:13px;color:var(--ink);text-align:center}
   .tin:focus{outline:none;border-color:var(--amber-deep);box-shadow:0 0 0 1px var(--amber-deep)}
-  .tedit2{display:flex;gap:8px}
-  .tedit2 label{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
-  .tedit2 .tin{width:58px}
-  .autohint{font-size:11px;color:var(--muted);padding:6px 10px;border:1px dashed var(--line);border-radius:10px}
-  .editing .lrow{flex-wrap:wrap}
-  .editing .lrow .nm{flex:1 1 auto}
-  .editing .lrow .ctrls{flex-wrap:wrap;justify-content:flex-end}
+  .tedit2{display:flex;gap:10px}
+  .tedit2 label{display:flex;flex-direction:row;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+  .tedit2 .tin{width:56px}
+  .autohint{font-size:11px;color:var(--muted);padding:4px 10px;border:1px dashed var(--line);border-radius:9px}
+  /* 編集時：折り返さず1行に保ち、名前は省略。高さは非編集時と同じ */
+  .editing .lrow{flex-wrap:nowrap}
+  .editing .lrow .nm{flex:1 1 auto;min-width:0}
+  .editing .lrow .ctrls{flex-wrap:nowrap;justify-content:flex-end}
   /* 一括削除用チェックボックス */
   .pcheck{width:20px;height:20px;flex:0 0 auto;margin-right:4px;accent-color:var(--coral,#ff5e5b);cursor:pointer}
   /* 名称モード：タイトルがクリックで編集可能なことを示す */
@@ -126,6 +127,17 @@
   /* 削除モード：選択行のハイライト */
   .delmode .lrow{cursor:pointer}
   .delmode .lrow.sel{box-shadow:0 0 0 2px var(--coral,#ff5e5b) inset;background:#fff4f3}
+  /* 表示/非表示モード */
+  .vismode .lrow{cursor:pointer}
+  .eyebtn{width:34px;height:28px;flex:0 0 auto;margin-right:6px;border:1px solid var(--line);
+    border-radius:9px;background:#fff;cursor:pointer;padding:0;color:var(--muted);
+    display:inline-flex;align-items:center;justify-content:center}
+  .eyebtn svg{display:block}
+  .eyebtn:hover{border-color:var(--amber-deep);color:var(--ink)}
+  .eyebtn.off{color:#b6bcc6}
+  .lrow.hiddenpj{opacity:.5}
+  .hidetag{margin-left:8px;font-size:10.5px;font-weight:700;color:#fff;background:#9aa1ac;
+    border-radius:6px;padding:2px 6px;vertical-align:middle}
   .pcheck-spacer{width:20px;flex:0 0 auto;margin-right:4px}
   .tbtn.danger{color:#fff;background:var(--red);border-color:var(--red)}
   .tbtn.danger:hover{filter:brightness(.95)}
@@ -171,11 +183,13 @@
     .tbtn.icon{width:36px}
     #widgetBtn{display:none}
 
-    .lrow{padding:14px 18px}
+    .lrow{padding:13px 18px;min-height:52px}
     .lrow .nm{font-size:15px}
     .lrow .tm{font-size:17px}
     .lrow .ctrls button{padding:7px 12px}
-    .editing .lrow .ctrls{flex:1 1 100%;justify-content:flex-start;margin-top:6px}
+    .editing .lrow .ctrls{justify-content:flex-end}
+    .tin{width:56px}
+    .tedit2 .tin{width:52px}
 
     /* iOS のフォーカス時自動ズーム防止（16px 未満だと拡大される） */
     input,select,textarea{font-size:16px}
@@ -251,6 +265,7 @@
     <div class="tbtn" id="sortWork" title="稼働順（過去7日間）" style="display:none">稼働順 <span class="ar" data-d="desc">▼</span><span class="ar" data-d="asc">▲</span></div>
     <div class="tbtn" id="csvBtn" title="CSVでプロジェクト一括登録" style="display:none">CSV取込</div>
     <div class="tbtn" id="nameModeBtn" title="名称編集モード（タイトルをクリックで編集）" style="display:none">名称</div>
+    <div class="tbtn" id="visModeBtn" title="表示/非表示モード（👁で切替）" style="display:none">表示</div>
     <div class="tbtn" id="delModeBtn" title="削除モード（チェック／Shift範囲／Ctrl任意）" style="display:none">削除</div>
     <div class="tbtn danger" id="bulkDelBtn" title="選択したプロジェクトを一括削除" style="display:none">選択削除</div>
     <div class="tbtn" id="widgetBtn" title="フロート表示">▣ ウィジェット</div>
@@ -292,7 +307,10 @@
     <div class="hint">Apps Script 側（<code>ACCESS_TOKEN</code>）と同じ文字列を入力します。これが一致した人だけが書き込み・集計できます。端末内に保存され、送信時のみ使われます。</div>
     <label>全員集計</label>
     <button class="btn-ghost" id="summaryBtn" style="width:100%">集計を今すぐ更新</button>
-    <div class="hint">全員のタブを読み込み、当月の「集計_YYYY_MM」シートを最新に更新します（月初に自動作成・1時間ごとの自動更新も設定可能）。並び順と正式名称は「_order」シート（A列に正式名称を縦1列）で指定。表示は頭4桁コードの昇順、コードなし（休憩・移動・9999系）は末尾です。</div>
+    <div class="hint">全員のタブを読み込み、当月の「集計_YYYY_MM」シートを最新に更新します（月初に自動作成・1時間ごとの自動更新も設定可能）。集計の並び順・正式名称は「_order」シートの<strong>A列</strong>で指定。表示は頭4桁コードの昇順、コードなし（休憩・移動・9999系）は末尾です。</div>
+    <label>PJボタン マスタ</label>
+    <button class="btn-ghost" id="orderSyncBtn" style="width:100%">PJマスタを同期</button>
+    <div class="hint">「_order」シートの<strong>B列</strong>をマスタとして、PJボタンを取り込みます（追加のみ・押すたびに実行）。頭4桁コードが手元に既にあるものはスキップします。取り込んだPJは編集の「表示」モードで各自に表示/非表示を切り替えられます（記録・集計はそのまま）。</div>
     <div class="row">
       <button class="btn-ghost" id="setCancel">閉じる</button>
       <button class="btn-primary" id="setSave">保存</button>
@@ -686,6 +704,9 @@ async function flush(){
 
 /* ---------- rendering (main + widget share state) ---------- */
 const grid=document.getElementById('grid');
+// シンプルな目アイコン（表示＝目 / 非表示＝斜線入りの目）
+const EYE_ON='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 6.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4-.9"/></svg>';
 let editing=false;
 let editSub=null;          // 編集サブモード: null / 'name' / 'del'（排他トグル）
 let selAnchor=null;        // 範囲選択(Shift)の起点index
@@ -699,9 +720,10 @@ function render(){
   }
   if(!state.projects.length){grid.innerHTML='<div class="empty">右上の ✎ → ＋ でプロジェクトを追加してください</div>';}
   state.projects.forEach((p,idx)=>{
+    if(p.hidden && !editing) return;          // 非表示PJは通常画面では出さない（データは不変）
     const running=state.active&&state.active.projectId===p.id;
     const el=document.createElement('div');
-    el.className='lrow'+(running?' run':''); el.dataset.id=p.id; el.dataset.idx=idx;
+    el.className='lrow'+(running?' run':'')+(p.hidden?' hiddenpj':''); el.dataset.id=p.id; el.dataset.idx=idx;
     let right;
     if(editing){
       let timeFields;
@@ -723,13 +745,16 @@ function render(){
     const special=isSpecial(p);
     const delMode=(editing&&editSub==='del');
     const nameMode=(editing&&editSub==='name');
+    const visMode=(editing&&editSub==='vis');
     const checkbox=delMode
       ? (special ? `<span class="pcheck-spacer"></span>`
                  : `<input type="checkbox" class="pcheck" data-pid="${p.id}" ${selected.has(p.id)?'checked':''} aria-label="選択">`)
-      : '';
+      : (visMode ? `<button class="eyebtn${p.hidden?' off':''}" data-pid="${p.id}" title="${p.hidden?'表示にする':'非表示にする'}" aria-label="${p.hidden?'表示にする':'非表示にする'}">${p.hidden?EYE_OFF:EYE_ON}</button>` : '');
     if(delMode&&!special&&selected.has(p.id)) el.classList.add('sel');
+    if(visMode&&selected.has(p.id)) el.classList.add('sel');
     const nmCls='nm'+(nameMode?' editable':'');
-    el.innerHTML=`${checkbox}<div class="${nmCls}" data-pid="${p.id}">${esc(p.name)}</div>${right}`;
+    const hideTag=(editing&&p.hidden)?`<span class="hidetag">非表示</span>`:'';
+    el.innerHTML=`${checkbox}<div class="${nmCls}" data-pid="${p.id}">${esc(p.name)}${hideTag}</div>${right}`;
 
     if(nameMode){
       const nmEl=el.querySelector('.nm');
@@ -738,15 +763,21 @@ function render(){
 
     el.addEventListener('click',ev=>{
       if(ev.target.classList&&ev.target.classList.contains('pcheck')) return;
+      if(ev.target.classList&&ev.target.classList.contains('eyebtn')) return;
       if(ev.target.closest&&ev.target.closest('.tin')) return;
       if(nameMode) return;
       if(delMode){ if(!special) selectClick(idx,p.id,ev); return; }
+      if(visMode){ visSelectClick(idx,p.id,ev); return; }
       if(!editing) tileClick(p.id);
     });
 
     el.querySelectorAll('.pcheck').forEach(chk=>{
       chk.addEventListener('pointerdown',ev=>ev.stopPropagation());
       chk.addEventListener('click',ev=>{ ev.stopPropagation(); selectClick(idx,p.id,ev,true); });
+    });
+    el.querySelectorAll('.eyebtn').forEach(btn=>{
+      btn.addEventListener('pointerdown',ev=>ev.stopPropagation());
+      btn.addEventListener('click',ev=>{ ev.stopPropagation(); toggleHidden(idx,p.id,ev); });
     });
     // 稼働時間の直接編集（1分単位）。ドラッグ並べ替えと干渉しないよう伝播を止める
     el.querySelectorAll('.tin').forEach(inp=>{
@@ -867,6 +898,7 @@ function renderPip(){
   const wd=pipDoc.getElementById('wDate');if(wd)wd.innerHTML=jpDate().replace(/^\d+\s*\/\s*/,'').replace(/\//g,'<span class="sl">/</span>');
   const list=pipDoc.getElementById('wlist');if(!list)return;list.innerHTML='';
   state.projects.forEach(p=>{
+    if(p.hidden) return;                     // 非表示PJはウィジェットにも出さない
     const running=state.active&&state.active.projectId===p.id;
     const row=pipDoc.createElement('div');
     row.className='wrow'+(running?' run':'');row.style.setProperty('--a',p.color);
@@ -934,6 +966,48 @@ document.getElementById('summaryBtn').onclick=async function(){
   }catch(e){ toast('集計の更新に失敗しました。接続をご確認ください'); }
   this.disabled=false; this.textContent=old;
 };
+// PJボタン配布マスタ（_order B列）を取得して取り込む。追加のみ・頭4桁コード重複はスキップ。
+function code4(name){ const m=String(name).match(/^(\d{4})_/); return m?m[1]:''; }
+function fetchOrderMaster(){
+  return new Promise((resolve,reject)=>{
+    if(!state.scriptUrl){ reject(new Error('no-url')); return; }
+    const cb='__kadoOrder'+Math.random().toString(36).slice(2,8);
+    const sep=state.scriptUrl.indexOf('?')>=0?'&':'?';
+    const url=state.scriptUrl+sep+'action=order&token='+encodeURIComponent(state.token||'')+'&callback='+cb+'&_='+Date.now();
+    const s=document.createElement('script');
+    let done=false;
+    const clean=()=>{ try{delete window[cb];}catch(e){} s.remove(); };
+    window[cb]=function(res){ done=true; clean(); resolve(res); };
+    s.onerror=function(){ if(done)return; clean(); reject(new Error('net')); };
+    setTimeout(()=>{ if(!done){ clean(); reject(new Error('timeout')); } },12000);
+    s.src=url; document.body.appendChild(s);
+  });
+}
+document.getElementById('orderSyncBtn').onclick=async function(){
+  if(!state.scriptUrl){ toast('先に Apps Script URL を設定してください'); return; }
+  this.disabled=true; const old=this.textContent; this.textContent='同期中…';
+  try{
+    const res=await fetchOrderMaster();
+    if(!res||!res.ok){ toast(res&&res.error==='unauthorized'?'合言葉が一致しません':'マスタの取得に失敗しました'); }
+    else{
+      const master=Array.isArray(res.projects)?res.projects:[];
+      const codes=new Set(state.projects.map(p=>code4(p.name)).filter(Boolean));
+      const names=new Set(state.projects.map(p=>String(p.name).trim()));
+      let added=0;
+      master.forEach(nm=>{
+        nm=String(nm).trim(); if(!nm) return;
+        const c=code4(nm);
+        if(c){ if(codes.has(c)) return; codes.add(c); }        // 4桁コード重複はスキップ
+        else { if(names.has(nm)) return; names.add(nm); }      // コード無しは同名スキップ
+        state.projects.push({id:id(),name:nm,color:pickColor_()});
+        added++;
+      });
+      if(added){ save(); paintAll(); }
+      toast(added?`${added}件のPJを取り込みました`:'追加対象はありませんでした（コード重複はスキップ）');
+    }
+  }catch(e){ toast('マスタの取得に失敗しました。接続をご確認ください'); }
+  this.disabled=false; this.textContent=old;
+};
 
 /* ---------- buttons ---------- */
 document.getElementById('clockIn').onclick=()=>doPunch('in');
@@ -969,8 +1043,11 @@ document.getElementById('editToggle').onclick=function(){
   document.getElementById('sortWork').style.display=disp;
   document.getElementById('csvBtn').style.display=disp;
   document.getElementById('nameModeBtn').style.display=disp;
+  document.getElementById('visModeBtn').style.display=disp;
   document.getElementById('delModeBtn').style.display=disp;
+  document.getElementById('widgetBtn').style.display=editing?'none':'';
   document.getElementById('nameModeBtn').classList.remove('active');
+  document.getElementById('visModeBtn').classList.remove('active');
   document.getElementById('delModeBtn').classList.remove('active');
   document.getElementById('clockIn').style.display=editing?'none':'';
   document.getElementById('inEditWrap').style.display=editing?'flex':'none';
@@ -983,12 +1060,15 @@ function setSubMode(mode){
   editSub=(editSub===mode)?null:mode;                    // 同じボタンで解除、排他切替
   selected.clear(); selAnchor=null;
   document.getElementById('nameModeBtn').classList.toggle('active',editSub==='name');
+  document.getElementById('visModeBtn').classList.toggle('active',editSub==='vis');
   document.getElementById('delModeBtn').classList.toggle('active',editSub==='del');
   document.querySelector('.wrap').classList.toggle('namemode',editSub==='name');
+  document.querySelector('.wrap').classList.toggle('vismode',editSub==='vis');
   document.querySelector('.wrap').classList.toggle('delmode',editSub==='del');
   render(); updateBulkBar();
 }
 document.getElementById('nameModeBtn').onclick=()=>setSubMode('name');
+document.getElementById('visModeBtn').onclick=()=>setSubMode('vis');
 document.getElementById('delModeBtn').onclick=()=>setSubMode('del');
 
 // 削除モードの選択：通常=1件トグル / Shift=範囲 / Ctrl(⌘)=任意トグル
@@ -1005,6 +1085,26 @@ function selectClick(idx,pid,ev,fromCheckbox){
     selAnchor=idx;
   }
   render(); updateBulkBar();
+}
+
+// 表示/非表示モード：👁ボタンで1件即トグル
+function toggleHidden(idx,pid,ev){
+  const p=state.projects[idx]; if(!p) return;
+  p.hidden=!p.hidden; if(!p.hidden) delete p.hidden;
+  save(); paintAll();
+}
+// 表示/非表示モードの行クリック（Shift=範囲／Ctrl=任意／通常=1件）。範囲はクリック行の新状態に合わせる。
+function visSelectClick(idx,pid,ev){
+  const p=state.projects[idx]; if(!p) return;
+  if(ev.shiftKey&&selAnchor!=null){
+    const target=!state.projects[idx].hidden;           // クリック行を反転した状態に範囲を合わせる
+    const a=Math.min(selAnchor,idx), b=Math.max(selAnchor,idx);
+    for(let i=a;i<=b;i++){ const q=state.projects[i]; if(!q)continue; if(target) q.hidden=true; else delete q.hidden; }
+  }else{                                                 // 通常・Ctrlとも1件トグル
+    p.hidden=!p.hidden; if(!p.hidden) delete p.hidden;
+    selAnchor=idx;
+  }
+  save(); paintAll();
 }
 
 // タイトルのインライン編集（名称モード）。Enter/フォーカスアウトで確定、Escで取消
